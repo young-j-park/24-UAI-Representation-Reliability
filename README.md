@@ -45,12 +45,12 @@ Additionally, you are required to create a YAML configuration file in the `./con
 
 #### Ex 1) In-Distribution Setting
 ```python
-python main.py --verbose --output_dir ./results --pretrain cifar10 --downstream cifar10 --seed 0
+python main.py --verbose --output_dir ./results --pretrain cifar100 --downstream cifar100 --seed 0
 ```
 
 #### Ex 2) Transfer Learning Setting
 ```python
-python main.py --verbose --output_dir ./results --pretrain imagenet32 --downstream cifar10 --seed 0
+python main.py --verbose --output_dir ./results --pretrain imagenet32 --downstream cifar100 --seed 0
 ```
 
 ## Evaluation
