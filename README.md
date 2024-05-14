@@ -10,7 +10,7 @@ $^1$ Massachusetts Institute of Technology, $^2$ MIT-IBM Watson AI Lab
 
 ## Summary
 
-![NC](nc.png)
+![NC](nc.jpg)
 
 - We introduce a formal definition of __representation reliability (Reli)__: the representation for a given test point is considered to be reliable if the downstream models built on top of that representation can consistently generate accurate predictions for that test point. However, accessing downstream data to quantify the representation reliability is often infeasible or restricted due to privacy concerns.
 - We propose an ensemble-based method for estimating the representation reliability without knowing the downstream tasks a priori. Our method is based on the concept of __neighborhood consistency (NC)__ across distinct pre-trained representation spaces. The key insight is to find shared neighboring points as anchors to align these representation spaces before comparing them.
