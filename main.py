@@ -22,16 +22,18 @@ def get_args_parser():
     parser = argparse.ArgumentParser(description='Set arguments for SSL-Uncertainty', add_help=False)
 
     # Model
-    parser.add_argument('--ssl', default='simclr', choices=['simclr', 'byol', 'moco', 'byol200'])
-    parser.add_argument('--arch', default='resnet18', choices=['resnet18', 'resnet50'])
+    parser.add_argument('--config_path', required=True, type=str)
+
+    parser.add_argument('--ssl', default=None, choices=['simclr', 'byol', 'moco', 'byol200'])
+    parser.add_argument('--arch', default=None, choices=['resnet18', 'resnet50'])
 
     # Dataset
-    parser.add_argument('--pretrain', type=str, default='cifar10', choices=['cifar10', 'cifar100', 'imagenet32'])
-    parser.add_argument('--downstream', default='cifar10', choices=['cifar10', 'cifar100', 'stl10'])
+    parser.add_argument('--pretrain', type=str, default=None, choices=['cifar10', 'cifar100', 'imagenet32'])
+    parser.add_argument('--downstream', default=None, choices=['cifar10', 'cifar100', 'stl10'])
 
     # Paths
-    parser.add_argument('--output_dir', default='', type=str)
-    parser.add_argument('--config_path', default=None, type=str, help='Path to the config file')
+    parser.add_argument('--output_dir', default=None, type=str)
+
     # Downstream Inference
     parser.add_argument('--seed', default=0, type=int, help='Random seed deciding the reference set')
     parser.add_argument('--task_type', type=str, default='binary', choices=['binary', 'multi'])
@@ -48,13 +50,18 @@ def main(args):
         logging.basicConfig(level=logging.INFO, format="%(asctime)s: %(levelname)s - %(message)s")
 
     # Load a config
-    if args.config_path is None:
-        config_path = f"./configs/{args.ssl}_{args.arch}_{args.pretrain}_{args.downstream}.yaml"
-    else:
-        config_path = args.config_path
+    config_path = args.config_path
 
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
+
+    model_cfg = config['model']
+    args.ssl = model_cfg['ssl']
+    args.arch = model_cfg['arch']
+
+    dataset_cfg = config['dataset']
+    args.pretrain = dataset_cfg['pretrain']
+    args.downstream = dataset_cfg['downstream']
 
     # Run downstream tasks
     downstream_cfg = config['downstream']
