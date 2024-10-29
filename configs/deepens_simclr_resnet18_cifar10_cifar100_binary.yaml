@@ -1,0 +1,35 @@
+
+model:
+  ssl: simclr
+  arch: resnet18
+  pretrain: cifar10
+
+downstream:
+  dataset: cifar100
+  rep_dir: /yparkskdir/representations/simclr_cifar10_resnet18_deep_ens
+  train_path: cifar100_train/{i}.pkl  # pretrain -> downstream
+  test_path: cifar100_test/{i}.pkl  # pretrain -> downstream
+  n_models: 1  # single model evaluation
+  task_type: binary
+  output_path: ./downstream/single/simclr_cifar10_cifar100_binary.csv
+
+evaluation:
+  distances:
+    - cosine
+#    - euclidean
+  methods:
+    - Dist
+    - L2Norm
+    - FV
+  params:
+    n_pretrain: 50000
+    n_ref: 5000
+    k_list:
+      - 1
+      - 100
+  ensemble:
+    type: deepens
+    dir: /yparkskdir/representations/simclr_cifar10_resnet18_deep_ens
+    ref: cifar10_train/{j}.pkl  # pretrain -> pretrain
+    eval: cifar100_test/{j}.pkl  # pretrain -> downstream
+    n_ens: 10

@@ -2,6 +2,7 @@
 import os
 import logging
 import pickle
+from typing import List
 
 import numpy as np
 import pandas as pd
@@ -9,8 +10,6 @@ import pandas as pd
 from .downstream import DownstreamTask
 from .binary import BinaryDownstreamTask
 from .multi import MultiDownstreamTask
-
-SAVE_DIR = './downstream'
 
 
 def get_task(task_name: str, task_type: str) -> DownstreamTask:
@@ -33,22 +32,31 @@ def get_task(task_name: str, task_type: str) -> DownstreamTask:
     return task
 
 
-def run_downstreams(args, load: bool = True) -> pd.DataFrame:
+def run_downstreams(
+        downstream: str,
+        task_type: str,
+        output_path: str,
+        train_paths: List[str],
+        test_paths: List[str],
+        load: bool = True
+) -> pd.DataFrame:
 
     # Load
-    save_path = f'{SAVE_DIR}/{args.ssl}_{args.arch}_{args.pretrain}_{args.downstream}_{args.task_type}.csv'
-    if load and os.path.exists(save_path):
-        logging.info(f'Downstream results are loaded from {save_path}.')
-        return pd.read_csv(save_path, index_col=False)
+    if load and os.path.exists(output_path):
+        logging.info(f'Downstream results are loaded from {output_path}.')
+        return pd.read_csv(output_path, index_col=False)
+
+    if not os.path.exists(os.path.dirname(output_path)):
+        os.makedirs(os.path.dirname(output_path))
 
     # Run Downstream Tasks
-    task = get_task(args.downstream, args.task_type)
+    task = get_task(downstream, task_type)
 
     logging.info('Start running downstream task ....')
     downstream_err_list = []
     pred_prob_list = []
     target_prob_list = []
-    for train_pth, test_pth in zip(args.downstream_train_paths, args.downstream_test_paths):
+    for train_pth, test_pth in zip(train_paths, test_paths):
         with open(train_pth, 'rb') as f:
             data = pickle.load(f)
             rep_ref = data['emb']
@@ -103,5 +111,5 @@ def run_downstreams(args, load: bool = True) -> pd.DataFrame:
 
     # Save
     results = pd.DataFrame(results)
-    results.to_csv(save_path, index=False)
+    results.to_csv(output_path, index=False)
     return results

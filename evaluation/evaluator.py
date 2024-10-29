@@ -27,7 +27,7 @@ class ResultStorage:
             data.update(configs)
     
 
-class Evaluator:
+class ReliEvaluator:
     def __init__(self):
         self.scores = {}
         self.data = {}
