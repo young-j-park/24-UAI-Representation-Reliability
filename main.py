@@ -5,13 +5,12 @@ import warnings
 import argparse
 from pathlib import Path
 from datetime import datetime
-from itertools import product
 
 import yaml
 
-from tasks import run_downstreams, SAVE_DIR as DOWNSTREAM_DIR
+from tasks import run_downstreams
 from evaluation.evaluate import evaluate_score
-from evaluation.evaluator import Evaluator
+from evaluation.evaluator import ReliEvaluator
 from utils import df_to_dict
 
 warnings.filterwarnings('ignore')
@@ -22,21 +21,15 @@ def get_args_parser():
     parser = argparse.ArgumentParser(description='Set arguments for SSL-Uncertainty', add_help=False)
 
     # Model
-    parser.add_argument('--config_path', required=True, type=str)
-
-    parser.add_argument('--ssl', default=None, choices=['simclr', 'byol', 'moco', 'byol200'])
-    parser.add_argument('--arch', default=None, choices=['resnet18', 'resnet50'])
-
-    # Dataset
-    parser.add_argument('--pretrain', type=str, default=None, choices=['cifar10', 'cifar100', 'imagenet32'])
-    parser.add_argument('--downstream', default=None, choices=['cifar10', 'cifar100', 'stl10'])
+    parser.add_argument('--config-path', required=True, type=str)
 
     # Paths
-    parser.add_argument('--output_dir', default=None, type=str)
+    parser.add_argument('--output-dir', default='./results', type=str)
 
     # Downstream Inference
     parser.add_argument('--seed', default=0, type=int, help='Random seed deciding the reference set')
-    parser.add_argument('--task_type', type=str, default='binary', choices=['binary', 'multi'])
+    parser.add_argument('--task-type', type=str, default=None, choices=['binary', 'multi'],
+                        help='Task type for downstream tasks. If set, it overrides the task type from the config.')
     parser.add_argument('--skip_evaluation', action='store_true')
     parser.add_argument('--debug', action='store_true')
     parser.add_argument('--verbose', action='store_true')
@@ -58,31 +51,35 @@ def main(args):
     model_cfg = config['model']
     args.ssl = model_cfg['ssl']
     args.arch = model_cfg['arch']
+    args.pretrain = model_cfg['pretrain']
 
-    dataset_cfg = config['dataset']
-    args.pretrain = dataset_cfg['pretrain']
-    args.downstream = dataset_cfg['downstream']
-
-    # Run downstream tasks
+    # Load / Run downstream tasks
     downstream_cfg = config['downstream']
-    args.downstream_train_paths = [
-        os.path.join(downstream_cfg['dir'], downstream_cfg['train'].format(i=i))
-        for i in range(downstream_cfg['n_models'])
-    ]
-    args.downstream_test_paths = [
-        os.path.join(downstream_cfg['dir'], downstream_cfg['test'].format(i=i))
-        for i in range(downstream_cfg['n_models'])
-    ]
-    results_df = run_downstreams(args, load=True)
+    args.downstream = downstream_cfg['dataset']
+    args.task_type = downstream_cfg['task_type'] if args.task_type is None else args.task_type
+    downstream_kwargs = {
+        'downstream': args.downstream,
+        'task_type': args.task_type,
+        'output_path': downstream_cfg['output_path'],
+        'train_paths': [
+            os.path.join(downstream_cfg['rep_dir'], downstream_cfg['train_path'].format(i=i))
+            for i in range(downstream_cfg['n_models'])
+        ],
+        'test_paths': [
+            os.path.join(downstream_cfg['rep_dir'], downstream_cfg['test_path'].format(i=i))
+            for i in range(downstream_cfg['n_models'])
+        ]
+    }
+    downstream_results_df = run_downstreams(**downstream_kwargs, load=True)
 
+    # Evaluate the metrics, including NC.
     if args.skip_evaluation:
         return
 
-    # Evaluate the measures
-    evaluator = Evaluator()
+    evaluator = ReliEvaluator()
     eval_cfg = config['evaluation']
-    ens_cfg = eval_cfg['deep_ens']
-    for dist in ['cosine', 'euclidean']:
+    ens_cfg = eval_cfg['ensemble']
+    for dist in eval_cfg['distances']:
         # paths for loading representations
         ref_rep_paths = [
             os.path.join(ens_cfg['dir'], ens_cfg['ref'].format(j=j))
@@ -112,15 +109,21 @@ def main(args):
         evaluator.merge(results)
 
     # Save / load the model uuid info
-    output_path = os.path.join(args.output_dir, f"{args.ssl}_{args.arch}_{args.pretrain}_{args.downstream}_{args.task_type}_seed{args.seed}")    
+    output_dir = os.path.join(args.output_dir, ens_cfg['type'])
+    os.makedirs(output_dir, exist_ok=True)
+    output_path = os.path.join(
+        output_dir,
+        f"{args.ssl}_{args.arch}_{args.pretrain}_{args.downstream}_{args.task_type}_seed{args.seed}"
+    )
+
     if args.debug:
         df_model = evaluator.save_score_model(output_path)
     else:
         df_model = evaluator.load_model()
-    
+
     # Evaluate the correlation
     model_id = -1  # downstream performance of ensemble
-    downstream_errs = df_to_dict(results_df[results_df.model_idx == model_id].groupby('data_idx').mean()
+    downstream_errs = df_to_dict(downstream_results_df[downstream_results_df.model_idx == model_id].groupby('data_idx').mean()
                                  .drop(columns=['task_idx', 'model_idx']).sort_index())
     evaluator.eval(downstream_errs, model_id=model_id)
     evaluator.save_corr(df_model, output_path)
@@ -129,7 +132,4 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('UQ-SSL script', parents=[get_args_parser()])
     args = parser.parse_args()
-    if args.output_dir:
-        Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-    Path(DOWNSTREAM_DIR).mkdir(parents=True, exist_ok=True)
     main(args)
